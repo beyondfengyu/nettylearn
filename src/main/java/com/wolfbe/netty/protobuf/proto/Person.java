@@ -1,7 +1,7 @@
 package com.wolfbe.netty.protobuf.proto;
 
 /**
- * @author laochunyu
+ * @author Andy
  */
 public class Person {
     private String name;

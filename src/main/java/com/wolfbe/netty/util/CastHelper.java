@@ -1,7 +1,7 @@
 package com.wolfbe.netty.util;
 
 /**
- * @author laochunyu
+ * @author Andy
  */
 public class CastHelper {
     private volatile long start;

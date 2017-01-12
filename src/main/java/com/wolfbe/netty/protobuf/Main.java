@@ -9,7 +9,9 @@ import com.wolfbe.netty.util.CastHelper;
 import java.nio.charset.Charset;
 
 /**
- * @author laochunyu
+ * 测试protobuf与fastjson编解码的性能
+ * 结果：fastjson耗时是protobuf的3倍，压测数量为千万级
+ * @author Andy
  */
 public class Main {
 
