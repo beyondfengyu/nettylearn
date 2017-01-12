@@ -1,0 +1,15 @@
+syntax="proto3";
+
+option java_package = "com.wolfbe.netty.protobuf.proto";
+option java_outer_classname = "PersonProbuf";
+
+message Person {
+  string name = 1;
+  int32 id = 2;
+  string email = 3;
+
+}
+
+message AddressBook {
+  repeated Person person = 1;
+}
