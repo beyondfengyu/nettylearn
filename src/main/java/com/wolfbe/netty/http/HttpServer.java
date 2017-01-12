@@ -20,7 +20,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * Http服务器，使用Netty中的Http协议栈，
  * 实现中支持多条请求路径，对于不存在的请求路径返回404状态码
- *
+ * 如：http://localhost:8099/getTime
  * @author Andy
  * @date 2017/1/12
  */
