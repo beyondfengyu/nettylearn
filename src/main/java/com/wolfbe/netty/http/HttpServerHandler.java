@@ -1,6 +1,7 @@
 package com.wolfbe.netty.http;
 
 import com.wolfbe.netty.util.DateTimeUtil;
+import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
@@ -43,5 +44,16 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
                 break;
         }
         ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
+    }
+
+    @Override
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+        logger.error("connection error", cause);
+        ctx.channel().close().addListener(new ChannelFutureListener() {
+            @Override
+            public void operationComplete(ChannelFuture channelFuture) throws Exception {
+                logger.info("connection close complete!!");
+            }
+        });
     }
 }
