@@ -6,14 +6,17 @@
 </head>
 <body>
 
-    <div>
+    <div style="margin:30px auto;width:501px;">
+        <h3>基于Netty实现的WebSocket聊天室</h3>
         <textarea id="content" style="width:500px;height:300px;">
 
         </textarea>
+        <br><br>
+        <p>输入发送的消息：<br>
+        <input type="text" id="mess" style="width:500px;height:30px;line-heght:30px;"/>
+        </p>
         <br>
-        <input type="text" id="mess" style="width:500px;"/>
-        <br>
-        <button id="sendBtn" onclick="send();" style="width:500px;">send</button>
+        <button id="sendBtn" onclick="send();" style="width:506px;">send</button>
     </div>
 
 
@@ -23,7 +26,7 @@
         window.WebSocket = window.MozWebSocket;
     }
     if(window.WebSocket) {
-        socket = new WebSocket("ws://192.168.136.1:8099/websocket");
+        socket = new WebSocket("ws://localhost:8099/websocket");
         socket.onmessage = function(event){
             console.log("onmessage data: " + event.data);
             var el = document.getElementById("content");

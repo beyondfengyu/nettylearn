@@ -11,6 +11,7 @@ import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponseEncoder;
 import io.netty.handler.codec.http.HttpServerCodec;
 import io.netty.handler.stream.ChunkedWriteHandler;
+import io.netty.handler.timeout.IdleStateHandler;
 
 import java.net.InetSocketAddress;
 
@@ -39,6 +40,7 @@ public class WebSocketServer extends BaseServer {
                                 new HttpServerCodec(),   //请求解码器
                                 new HttpObjectAggregator(65536),//将多个消息转换成单一的消息对象
                                 new ChunkedWriteHandler(),  //支持异步发送大的码流，一般用于发送文件流
+                                new IdleStateHandler(0,0,30), //检测链路是否空闲
                                 new WebSocketHandler()     //自定义处理器
                         );
                     }
