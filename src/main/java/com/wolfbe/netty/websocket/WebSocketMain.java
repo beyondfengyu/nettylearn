@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
+ * WebSocket聊天室，客户端参考docs目录下的websocket.html
  * @author laochunyu
  */
 public class WebSocketMain {
