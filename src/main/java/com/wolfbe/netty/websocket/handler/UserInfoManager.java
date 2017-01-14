@@ -25,7 +25,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 public class UserInfoManager {
     private static final Logger logger = LoggerFactory.getLogger(UserInfoManager.class);
 
-    private static ReadWriteLock rwLock = new ReentrantReadWriteLock(true);
+    private static ReentrantReadWriteLock rwLock = new ReentrantReadWriteLock(true);
 
     private static ConcurrentMap<Channel, UserInfo> userInfos = new ConcurrentHashMap<>();
     private static AtomicInteger userCount = new AtomicInteger(0);
@@ -55,6 +55,7 @@ public class UserInfoManager {
         userCount.incrementAndGet();
         userInfo.setNick(nick);
         userInfo.setAuth(true);
+        userInfo.setUserId();
         userInfo.setTime(System.currentTimeMillis());
         return true;
     }
@@ -66,13 +67,13 @@ public class UserInfoManager {
      */
     public static void removeChannel(Channel channel) {
         try {
+            logger.warn("channel will be remove, address is :{}", NettyUtil.parseChannelRemoteAddr(channel));
             rwLock.writeLock().lock();
+            channel.close();
             UserInfo userInfo = userInfos.get(channel);
             if (userInfo != null) {
-                logger.warn("channel will be remove, address is :{}", userInfo.getAddr());
-                channel.close();
                 UserInfo tmp = userInfos.remove(channel);
-                if (tmp != null) {
+                if (tmp != null && tmp.isAuth()) {
                     // 减去一个认证用户
                     userCount.decrementAndGet();
                 }
@@ -88,7 +89,7 @@ public class UserInfoManager {
      *
      * @param message
      */
-    public static void broadcastMess(String nick, String message) {
+    public static void broadcastMess(int uid, String nick, String message) {
         if (!BlankUtil.isBlank(message)) {
             try {
                 rwLock.readLock().lock();
@@ -96,7 +97,7 @@ public class UserInfoManager {
                 for (Channel ch : keySet) {
                     UserInfo userInfo = userInfos.get(ch);
                     if (userInfo == null || !userInfo.isAuth()) continue;
-                    ch.writeAndFlush(new TextWebSocketFrame(ChatProto.buildMessProto(nick, message)));
+                    ch.writeAndFlush(new TextWebSocketFrame(ChatProto.buildMessProto(uid, nick, message)));
                 }
             } finally {
                 rwLock.readLock().unlock();
@@ -124,6 +125,7 @@ public class UserInfoManager {
     public static void broadCastPing() {
         try {
             rwLock.readLock().lock();
+            logger.info("broadCastPing userCount: {}",userCount.intValue());
             Set<Channel> keySet = userInfos.keySet();
             for (Channel ch : keySet) {
                 UserInfo userInfo = userInfos.get(ch);
@@ -152,18 +154,14 @@ public class UserInfoManager {
      * 扫描并关闭失效的Channel
      */
     public static void scanNotActiveChannel() {
-        try {
-            rwLock.readLock().lock();
-            Set<Channel> keySet = userInfos.keySet();
-            for (Channel ch : keySet) {
-                UserInfo userInfo = userInfos.get(ch);
-                if(userInfo == null) continue;
-                if (!ch.isOpen() || !ch.isActive() || (System.currentTimeMillis() -userInfo.getTime()) > 10000) {
-                    removeChannel(ch);
-                }
+        Set<Channel> keySet = userInfos.keySet();
+        for (Channel ch : keySet) {
+            UserInfo userInfo = userInfos.get(ch);
+            if(userInfo == null) continue;
+            if (!ch.isOpen() || !ch.isActive() || ( !userInfo.isAuth() &&
+                    (System.currentTimeMillis() - userInfo.getTime()) > 10000)) {
+                removeChannel(ch);
             }
-        } finally {
-            rwLock.readLock().unlock();
         }
     }
 
@@ -178,5 +176,12 @@ public class UserInfoManager {
 
     public static int getAuthUserCount(){
         return userCount.get();
+    }
+
+    public static void updateUserTime(Channel channel) {
+        UserInfo userInfo = getUserInfo(channel);
+        if (userInfo != null) {
+            userInfo.setTime(System.currentTimeMillis());
+        }
     }
 }

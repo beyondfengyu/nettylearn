@@ -21,12 +21,12 @@ public class ChatProto {
     public static final int MESS_PROTO = 6 << 8 | 220; //普通消息
 
     private int version = 1;
-    private int head;
+    private int uri;
     private String body;
     private Map<String,Object> extend = new HashMap<>();
 
     public ChatProto(int head, String body) {
-        this.head = head;
+        this.uri = head;
         this.body = body;
     }
 
@@ -58,8 +58,9 @@ public class ChatProto {
         return JSONObject.toJSONString(chatProto);
     }
 
-    public static String buildMessProto(String nick, String mess) {
+    public static String buildMessProto(int uid,String nick, String mess) {
         ChatProto chatProto = new ChatProto(MESS_PROTO, mess);
+        chatProto.extend.put("uid", uid);
         chatProto.extend.put("nick", nick);
         chatProto.extend.put("time", DateTimeUtil.getCurrentTime());
         return JSONObject.toJSONString(chatProto);
@@ -70,12 +71,12 @@ public class ChatProto {
         return JSONObject.toJSONString(chatProto);
     }
 
-    public int getHead() {
-        return head;
+    public int getUri() {
+        return uri;
     }
 
-    public void setHead(int head) {
-        this.head = head;
+    public void setUri(int uri) {
+        this.uri = uri;
     }
 
     public String getBody() {

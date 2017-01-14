@@ -7,7 +7,7 @@
     <meta name="description" content="聊天室,Netty,WebSocket">
     <meta name="author" content="Andy">
     <link rel="icon" href="./favicon.ico">
-    <title>WOLFBE聊天室 | 支持多人同时在线</title>
+    <title>嗨皮 聊天室 | 支持多人同时在线</title>
     <!-- Bootstrap core CSS -->
     <link rel="stylesheet" href="http://cdn.bootcss.com/bootstrap/3.3.5/css/bootstrap.min.css">
     <!-- HTML5 shim and Respond.js IE8 support of HTML5 elements and media queries -->
@@ -17,14 +17,41 @@
     <![endif]-->
 </head>
 <body>
-
-<div style="margin:30px auto;width:501px;">
-    <h3>基于Netty实现的WebSocket聊天室</h3>
-    <p>输入昵称：<br>
-        <input type="text" id="nick" style="width:500px;height:30px;line-heght:30px;"/>
-    </p>
-    <br>
-    <button id="save" onclick="save();" style="width:506px;">save</button>
+<div class="modal fade" id="menuModal" tabindex="-1" role="dialog" aria-labelledby="modalLabel">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                <h4 class="modal-title" id="modalLabel">欢迎来到嗨皮聊天室 | WOLFBE.COM</h4>
+            </div>
+            <div class="modal-body">
+                <form class="form-horizontal" id="menuForm">
+                    <input type="hidden" name="id" id="id"/>
+                    <div class="form-group">
+                        <label for="nick" class="col-sm-2 control-label">昵称:</label>
+                        <div class="col-sm-10">
+                            <input type="text" class="form-control validate[required]" name="nick" id="nick">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" id="loginBtn">登录</button>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="modal fade" id="tipModal" tabindex="-1" role="dialog" aria-labelledby="modalLabel">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <!--<div class="modal-header">-->
+                <!--<h4 class="modal-title">提示信息</h4>-->
+            <!--</div>-->
+            <div class="modal-body" id="tipMsg" style="align:center;"></div>
+        </div>
+    </div>
+</div>
+<div id="chatWin" style="display:none;margin:30px auto;width:501px;">
     <textarea id="content" style="width:500px;height:300px;">
 
         </textarea>
@@ -33,7 +60,7 @@
         <input type="text" id="mess" style="width:500px;height:30px;line-heght:30px;"/>
     </p>
     <br>
-    <button id="sendBtn" onclick="send();" style="width:506px;">send</button>
+    <button id="sendBtn" onclick="sendMess();" style="width:506px;">send</button>
 </div>
 
 <script src="http://cdn.bootcss.com/jquery/2.1.4/jquery.min.js"></script>
@@ -41,37 +68,57 @@
 <script type="text/javascript">
     var socket = null;
     var isAuth = false;
+    var userNick = null;
     var userCount = 0;
     $(function () {
+        $("#menuModal").modal('show');
 
+        $('#loginBtn').click(function(){
+            userLogin();
+        });
     });
 
+    function sendMess() {
+        var obj = {};
+        obj.code = 10086;
+        obj.mess = $('#mess').val().trim();
+        send(true, JSON.stringify(obj));
+    };
 
-    function save() {
-        var nick = $('#nick').val();
-        if (nick && nick.trim()) {
+
+    function userLogin() {
+        if(!userNick) {
+            userNick = $('#nick').val().trim();
+        }
+        if (userNick) {
             if (!window.WebSocket) {
                 window.WebSocket = window.MozWebSocket;
             }
             if (window.WebSocket) {
                 window.socket = new WebSocket("ws://chat.wolfbe.com:8099/websocket");
                 window.socket.onmessage = function (event) {
-                    console.log("onmessage data: " + event.data);
-                    var data = eval(event.data);
-                    switch(data.head){
-                        case 1 << 8 | 200: // ping message
-                        case 2 << 8 | 200: // pong message
+                    var data = eval("("+event.data+")");
+                    console.log("onmessage data: " + JSON.stringify(data));
+                    switch (data.uri) {
+                        case 1 << 8 | 220: // ping message
+                        case 2 << 8 | 220: // pong message
+                            console.log("ping message: " + JSON.stringify(data));
                             pingInvake(data);
                             break;
-                        case 3 << 8 | 200: // system message
+                        case 3 << 8 | 220: // system message
+                            console.log("system message: " + JSON.stringify(data));
                             sysInvake(data);
                             break;
-                        case 4 << 8 | 200: // error message
+                        case 4 << 8 | 220: // error message
+                            console.log("error message: " + JSON.stringify(data));
                             closeInvake(null);
                             break;
-                        case 5 << 8 | 200: // auth message
+                        case 5 << 8 | 220: // auth message
+                            console.log("auth message: " + JSON.stringify(data));
                             break;
-                        case 6 << 8 | 200: // normal message
+                        case 6 << 8 | 220: // broadcast message
+                            console.log("broadcast message: " + JSON.stringify(data));
+                            broadcastInvake(data);
                             break;
 
                     }
@@ -88,11 +135,12 @@
                 alert("您的浏览器不支持WebSocket！！！");
             }
         } else {
-            alert("请输入昵称！！！");
+            $('#tipMsg').text("请输入昵称");
+            $('#tipModal').modal('show');
         }
     }
 
-    function send(auth,mess) {
+    function send(auth, mess) {
         if (!window.socket) {
             return;
         }
@@ -100,51 +148,80 @@
             console.log("send: " + mess);
             socket.send(mess);
         } else {
-            alert("连接没有成功！！！");
+            $('#tipMsg').text("连接没有成功，请重新登录");
+            $('#tipModal').modal('show');
         }
     };
 
-    function openInvake(event){
+    function openInvake(event) {
         var obj = {};
         obj.code = 10000;
         obj.nick = $('#nick').val().trim();
         send(true, JSON.stringify(obj));
     };
 
-    function closeInvake(event){
+
+    function closeInvake(event) {
         window.socket = null;
         window.isAuth = false;
         window.userCount = 0;
+        // 断线重连，尝试3次
+        var num = 3;
+        while(num > 0 && !window.isAuth){
+            console.log("retry userlogin");
+            userLogin();
+            num = num - 1;
+        }
+        if(!window.isAuth){
+            $('#menuModal').modal('show');
+            $('#chatWin').hide();
+        }
     };
 
-
-    function sysInvake(data){
+    /**
+     * 处理系统消息
+     * @param data
+     */
+    function sysInvake(data) {
         switch (data.extend.code) {
             case 20001: // user count
-                console.log("current user: "+data.mess);
-                userCount = data.mess;
+                console.log("current user: " + data.extend.mess);
+                userCount = data.extend.mess;
                 break;
             case 20002: // auth
-                console.log("auth result: "+data.mess);
-                isAuth = data.mess;
+                console.log("auth result: " + data.extend.mess);
+                isAuth = data.extend.mess;
+                if(isAuth) {
+                    $("#menuModal").modal('hide');
+                    $('#chatWin').show();
+                }
                 break;
             case 20003: // system message
-                console.log("system message: " + data.mess);
+                console.log("system message: " + data.extend.mess);
                 break;
         }
     };
 
-    function messInvake(data) {
+    /**
+     * 处理广播消息
+     * @param data
+     */
+    function broadcastInvake(data) {
 
     };
 
     function erorInvake(data) {
 
-    }
+    };
 
+    /**
+     * 处理ping消息
+     * @param data
+     */
     function pingInvake(data) {
-        send(isAuth,"{'code':10016}");
-    }
+        //发送pong消息响应
+        send(isAuth, "{'code':10016}");
+    };
 </script>
 </body>
 </html>

@@ -5,6 +5,7 @@ import com.wolfbe.netty.util.Constants;
 import com.wolfbe.netty.util.NettyUtil;
 import com.wolfbe.netty.websocket.entity.UserInfo;
 import com.wolfbe.netty.websocket.proto.ChatCode;
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.FullHttpRequest;
@@ -32,12 +33,6 @@ public class UserAuthHandler extends SimpleChannelInboundHandler<Object> {
     }
 
     @Override
-    public void channelUnregistered(ChannelHandlerContext ctx) throws Exception {
-        UserInfoManager.removeChannel(ctx.channel());
-        super.channelUnregistered(ctx);
-    }
-
-    @Override
     public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
         if (evt instanceof IdleStateEvent) {
             IdleStateEvent evnet = (IdleStateEvent) evt;
@@ -46,16 +41,10 @@ public class UserAuthHandler extends SimpleChannelInboundHandler<Object> {
                 final String remoteAddress = NettyUtil.parseChannelRemoteAddr(ctx.channel());
                 logger.warn("NETTY SERVER PIPELINE: IDLE exception [{}]", remoteAddress);
                 UserInfoManager.removeChannel(ctx.channel());
+                UserInfoManager.broadCastInfo(ChatCode.SYS_USER_COUNT,UserInfoManager.getAuthUserCount());
             }
         }
         ctx.fireUserEventTriggered(evt);
-    }
-
-    @Override
-    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-        logger.error("connection error and close the channel", cause);
-        UserInfoManager.removeChannel(ctx.channel());
-        UserInfoManager.broadCastInfo(ChatCode.SYS_USER_COUNT, UserInfoManager.getAuthUserCount());
     }
 
     private void handleHttpRequest(ChannelHandlerContext ctx, FullHttpRequest request) {
@@ -106,15 +95,17 @@ public class UserAuthHandler extends SimpleChannelInboundHandler<Object> {
         String message = ((TextWebSocketFrame) frame).text();
         JSONObject json = JSONObject.parseObject(message);
         int code = json.getInteger("code");
+        Channel channel = ctx.channel();
         switch (code) {
             case ChatCode.PING_CODE:
             case ChatCode.PONG_CODE:
+                UserInfoManager.updateUserTime(channel);
 //                UserInfoManager.sendPong(ctx.channel());
-                logger.info("receive pong message, address: {}",NettyUtil.parseChannelRemoteAddr(ctx.channel()));
+                logger.info("receive pong message, address: {}",NettyUtil.parseChannelRemoteAddr(channel));
                 return;
             case ChatCode.AUTH_CODE:
-                boolean isSuccess = UserInfoManager.saveUser(ctx.channel(), json.getString("nick"));
-                UserInfoManager.sendInfo(ctx.channel(),ChatCode.SYS_AUTH_STATE,isSuccess);
+                boolean isSuccess = UserInfoManager.saveUser(channel, json.getString("nick"));
+                UserInfoManager.sendInfo(channel,ChatCode.SYS_AUTH_STATE,isSuccess);
                 if (isSuccess) {
                     UserInfoManager.broadCastInfo(ChatCode.SYS_USER_COUNT,UserInfoManager.getAuthUserCount());
                 }
@@ -126,7 +117,6 @@ public class UserAuthHandler extends SimpleChannelInboundHandler<Object> {
                 return;
         }
         //后续消息交给MessageHandler处理
-        ctx.fireChannelRead(frame);
-
+        ctx.fireChannelRead(frame.retain());
     }
 }
