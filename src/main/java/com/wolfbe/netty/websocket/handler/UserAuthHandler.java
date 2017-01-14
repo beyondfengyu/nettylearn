@@ -1,8 +1,10 @@
-package com.wolfbe.netty.websocket;
+package com.wolfbe.netty.websocket.handler;
 
+import com.alibaba.fastjson.JSONObject;
 import com.wolfbe.netty.util.Constants;
-import com.wolfbe.netty.util.DateTimeUtil;
 import com.wolfbe.netty.util.NettyUtil;
+import com.wolfbe.netty.websocket.entity.UserInfo;
+import com.wolfbe.netty.websocket.proto.ChatCode;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.FullHttpRequest;
@@ -12,13 +14,11 @@ import io.netty.handler.timeout.IdleStateEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Date;
-
 /**
- * @author laochunyu
+ * @author Andy
  */
-public class WebSocketHandler extends SimpleChannelInboundHandler<Object> {
-    private static final Logger logger = LoggerFactory.getLogger(WebSocketHandler.class);
+public class UserAuthHandler extends SimpleChannelInboundHandler<Object> {
+    private static final Logger logger = LoggerFactory.getLogger(UserAuthHandler.class);
 
     private WebSocketServerHandshaker handshaker;
 
@@ -32,13 +32,20 @@ public class WebSocketHandler extends SimpleChannelInboundHandler<Object> {
     }
 
     @Override
+    public void channelUnregistered(ChannelHandlerContext ctx) throws Exception {
+        UserInfoManager.removeChannel(ctx.channel());
+        super.channelUnregistered(ctx);
+    }
+
+    @Override
     public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
         if (evt instanceof IdleStateEvent) {
             IdleStateEvent evnet = (IdleStateEvent) evt;
-            if (evnet.state().equals(IdleState.ALL_IDLE)) {
+            // 判断Channel是否读空闲, 读空闲时移除Channel
+            if (evnet.state().equals(IdleState.READER_IDLE)) {
                 final String remoteAddress = NettyUtil.parseChannelRemoteAddr(ctx.channel());
                 logger.warn("NETTY SERVER PIPELINE: IDLE exception [{}]", remoteAddress);
-               ChannelManager.removeChannel(ctx.channel());
+                UserInfoManager.removeChannel(ctx.channel());
             }
         }
         ctx.fireUserEventTriggered(evt);
@@ -47,7 +54,8 @@ public class WebSocketHandler extends SimpleChannelInboundHandler<Object> {
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
         logger.error("connection error and close the channel", cause);
-        ChannelManager.removeChannel(ctx.channel());
+        UserInfoManager.removeChannel(ctx.channel());
+        UserInfoManager.broadCastInfo(ChatCode.SYS_USER_COUNT, UserInfoManager.getAuthUserCount());
     }
 
     private void handleHttpRequest(ChannelHandlerContext ctx, FullHttpRequest request) {
@@ -64,8 +72,10 @@ public class WebSocketHandler extends SimpleChannelInboundHandler<Object> {
         } else {
             // 动态加入websocket的编解码处理
             handshaker.handshake(ctx.channel(), request);
+            UserInfo userInfo = new UserInfo();
+            userInfo.setAddr(NettyUtil.parseChannelRemoteAddr(ctx.channel()));
             // 存储已经连接的Channel
-            ChannelManager.addChannel(ctx.channel(), new Date().getTime());
+            UserInfoManager.addChannel(ctx.channel());
         }
     }
 
@@ -73,7 +83,7 @@ public class WebSocketHandler extends SimpleChannelInboundHandler<Object> {
         // 判断是否关闭链路命令
         if (frame instanceof CloseWebSocketFrame) {
             handshaker.close(ctx.channel(), (CloseWebSocketFrame) frame.retain());
-            ChannelManager.removeChannel(ctx.channel());
+            UserInfoManager.removeChannel(ctx.channel());
             return;
         }
         // 判断是否Ping消息
@@ -88,13 +98,35 @@ public class WebSocketHandler extends SimpleChannelInboundHandler<Object> {
             ctx.writeAndFlush(new PongWebSocketFrame(frame.content().retain()));
             return;
         }
+
         // 本程序目前只支持文本消息
         if (!(frame instanceof TextWebSocketFrame)) {
             throw new UnsupportedOperationException(frame.getClass().getName() + " frame type not supported");
         }
-        // 广播请求的消息文本和当前时间
-        ChannelManager.broadcast("current time is:" + DateTimeUtil.getCurrentTime());
-        ChannelManager.broadcast(((TextWebSocketFrame) frame).text());
+        String message = ((TextWebSocketFrame) frame).text();
+        JSONObject json = JSONObject.parseObject(message);
+        int code = json.getInteger("code");
+        switch (code) {
+            case ChatCode.PING_CODE:
+            case ChatCode.PONG_CODE:
+//                UserInfoManager.sendPong(ctx.channel());
+                logger.info("receive pong message, address: {}",NettyUtil.parseChannelRemoteAddr(ctx.channel()));
+                return;
+            case ChatCode.AUTH_CODE:
+                boolean isSuccess = UserInfoManager.saveUser(ctx.channel(), json.getString("nick"));
+                UserInfoManager.sendInfo(ctx.channel(),ChatCode.SYS_AUTH_STATE,isSuccess);
+                if (isSuccess) {
+                    UserInfoManager.broadCastInfo(ChatCode.SYS_USER_COUNT,UserInfoManager.getAuthUserCount());
+                }
+                return;
+            case ChatCode.MESS_CODE: //普通的消息留给MessageHandler处理
+                break;
+            default:
+                logger.warn("The code [{}] can't be auth!!!", code);
+                return;
+        }
+        //后续消息交给MessageHandler处理
+        ctx.fireChannelRead(frame);
 
     }
 }

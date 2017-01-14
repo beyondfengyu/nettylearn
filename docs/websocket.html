@@ -26,7 +26,7 @@
         window.WebSocket = window.MozWebSocket;
     }
     if(window.WebSocket) {
-        socket = new WebSocket("ws://localhost:8099/websocket");
+        socket = new WebSocket("ws://chat.wolfbe.com:8099/websocket");
         socket.onmessage = function(event){
             console.log("onmessage data: " + event.data);
             var el = document.getElementById("content");

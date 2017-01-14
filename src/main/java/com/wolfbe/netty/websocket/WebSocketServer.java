@@ -1,27 +1,41 @@
 package com.wolfbe.netty.websocket;
 
 import com.wolfbe.netty.BaseServer;
-import com.wolfbe.netty.http.HttpServerHandler;
+import com.wolfbe.netty.websocket.handler.UserInfoManager;
+import com.wolfbe.netty.websocket.handler.MessageHandler;
+import com.wolfbe.netty.websocket.handler.UserAuthHandler;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.http.HttpObjectAggregator;
-import io.netty.handler.codec.http.HttpRequestDecoder;
-import io.netty.handler.codec.http.HttpResponseEncoder;
 import io.netty.handler.codec.http.HttpServerCodec;
 import io.netty.handler.stream.ChunkedWriteHandler;
 import io.netty.handler.timeout.IdleStateHandler;
 
 import java.net.InetSocketAddress;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * @author laochunyu
  */
 public class WebSocketServer extends BaseServer {
+    private ScheduledExecutorService executorService;
 
     public WebSocketServer(int port){
         this.port = port;
+        executorService = new ScheduledThreadPoolExecutor(2, new ThreadFactory() {
+            private AtomicInteger index = new AtomicInteger(0);
+
+            @Override
+            public Thread newThread(Runnable r) {
+                return new Thread(r,"ScheduledExecutorService_"+index.incrementAndGet());
+            }
+        });
     }
 
     @Override
@@ -40,8 +54,9 @@ public class WebSocketServer extends BaseServer {
                                 new HttpServerCodec(),   //请求解码器
                                 new HttpObjectAggregator(65536),//将多个消息转换成单一的消息对象
                                 new ChunkedWriteHandler(),  //支持异步发送大的码流，一般用于发送文件流
-                                new IdleStateHandler(0,0,30), //检测链路是否空闲
-                                new WebSocketHandler()     //自定义处理器
+                                new IdleStateHandler(30,0,0), //检测链路是否读空闲
+                                new UserAuthHandler(), //处理握手和认证
+                                new MessageHandler()    //处理消息的发送
                         );
                     }
                 });
@@ -50,8 +65,24 @@ public class WebSocketServer extends BaseServer {
             cf = b.bind().sync();
             InetSocketAddress addr = (InetSocketAddress) cf.channel().localAddress();
             logger.info("WebSocketServer start success, port is:{}", addr.getPort());
+
+            // 定时扫描所有的Channel，关闭失效的Channel
+            executorService.scheduleAtFixedRate(new Runnable() {
+                @Override
+                public void run() {
+                    UserInfoManager.scanNotActiveChannel();
+                }
+            }, 1000, 60, TimeUnit.SECONDS);
+
+            // 定时向所有客户端发送Ping消息
+            executorService.scheduleAtFixedRate(new Runnable() {
+                @Override
+                public void run() {
+                    UserInfoManager.broadCastPing();
+                }
+            }, 3000, 30, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
-            e.printStackTrace();
+            logger.error("WebSocketServer start fail,",e);
         }
     }
 }

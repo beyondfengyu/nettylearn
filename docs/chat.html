@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="聊天室,Netty,WebSocket">
+    <meta name="author" content="Andy">
+    <link rel="icon" href="./favicon.ico">
+    <title>WOLFBE聊天室 | 支持多人同时在线</title>
+    <!-- Bootstrap core CSS -->
+    <link rel="stylesheet" href="http://cdn.bootcss.com/bootstrap/3.3.5/css/bootstrap.min.css">
+    <!-- HTML5 shim and Respond.js IE8 support of HTML5 elements and media queries -->
+    <!--[if lt IE 9]>
+    <script src="https://oss.maxcdn.com/html5shiv/3.7.2/html5shiv.min.js"></script>
+    <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
+    <![endif]-->
+</head>
+<body>
+
+<div style="margin:30px auto;width:501px;">
+    <h3>基于Netty实现的WebSocket聊天室</h3>
+    <p>输入昵称：<br>
+        <input type="text" id="nick" style="width:500px;height:30px;line-heght:30px;"/>
+    </p>
+    <br>
+    <button id="save" onclick="save();" style="width:506px;">save</button>
+    <textarea id="content" style="width:500px;height:300px;">
+
+        </textarea>
+    <br><br>
+    <p>输入发送的消息：<br>
+        <input type="text" id="mess" style="width:500px;height:30px;line-heght:30px;"/>
+    </p>
+    <br>
+    <button id="sendBtn" onclick="send();" style="width:506px;">send</button>
+</div>
+
+<script src="http://cdn.bootcss.com/jquery/2.1.4/jquery.min.js"></script>
+<script src="http://cdn.bootcss.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
+<script type="text/javascript">
+    var socket = null;
+    var isAuth = false;
+    var userCount = 0;
+    $(function () {
+
+    });
+
+
+    function save() {
+        var nick = $('#nick').val();
+        if (nick && nick.trim()) {
+            if (!window.WebSocket) {
+                window.WebSocket = window.MozWebSocket;
+            }
+            if (window.WebSocket) {
+                window.socket = new WebSocket("ws://chat.wolfbe.com:8099/websocket");
+                window.socket.onmessage = function (event) {
+                    console.log("onmessage data: " + event.data);
+                    var data = eval(event.data);
+                    switch(data.head){
+                        case 1 << 8 | 200: // ping message
+                        case 2 << 8 | 200: // pong message
+                            pingInvake(data);
+                            break;
+                        case 3 << 8 | 200: // system message
+                            sysInvake(data);
+                            break;
+                        case 4 << 8 | 200: // error message
+                            closeInvake(null);
+                            break;
+                        case 5 << 8 | 200: // auth message
+                            break;
+                        case 6 << 8 | 200: // normal message
+                            break;
+
+                    }
+                };
+                window.socket.onclose = function (event) {
+                    console.log("connection close!!!");
+                    closeInvake(event);
+                };
+                window.socket.onopen = function (event) {
+                    console.log("connection success!!");
+                    openInvake(event);
+                };
+            } else {
+                alert("您的浏览器不支持WebSocket！！！");
+            }
+        } else {
+            alert("请输入昵称！！！");
+        }
+    }
+
+    function send(auth,mess) {
+        if (!window.socket) {
+            return;
+        }
+        if (socket.readyState == WebSocket.OPEN || auth) {
+            console.log("send: " + mess);
+            socket.send(mess);
+        } else {
+            alert("连接没有成功！！！");
+        }
+    };
+
+    function openInvake(event){
+        var obj = {};
+        obj.code = 10000;
+        obj.nick = $('#nick').val().trim();
+        send(true, JSON.stringify(obj));
+    };
+
+    function closeInvake(event){
+        window.socket = null;
+        window.isAuth = false;
+        window.userCount = 0;
+    };
+
+
+    function sysInvake(data){
+        switch (data.extend.code) {
+            case 20001: // user count
+                console.log("current user: "+data.mess);
+                userCount = data.mess;
+                break;
+            case 20002: // auth
+                console.log("auth result: "+data.mess);
+                isAuth = data.mess;
+                break;
+            case 20003: // system message
+                console.log("system message: " + data.mess);
+                break;
+        }
+    };
+
+    function messInvake(data) {
+
+    };
+
+    function erorInvake(data) {
+
+    }
+
+    function pingInvake(data) {
+        send(isAuth,"{'code':10016}");
+    }
+</script>
+</body>
+</html>

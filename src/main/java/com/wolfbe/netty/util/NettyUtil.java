@@ -9,6 +9,11 @@ import java.net.SocketAddress;
  */
 public class NettyUtil {
 
+    /**
+     * 获取Channel的远程IP地址
+     * @param channel
+     * @return
+     */
     public static String parseChannelRemoteAddr(final Channel channel) {
         if (null == channel) {
             return "";

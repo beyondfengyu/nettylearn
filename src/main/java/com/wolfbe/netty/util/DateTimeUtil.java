@@ -9,14 +9,15 @@ import org.slf4j.Logger; import org.slf4j.LoggerFactory;
 
 
 /**
- * @author laochunyu 2015-7-31
+ * @author Andy 2015-7-31
  * @description 时间日期的工具类
  */
 public class DateTimeUtil {
 	
 	private static final Logger logger = LoggerFactory.getLogger(DateTimeUtil.class);
-	private static final String DEFAULT_PATTERN = "yyyy-MM-dd HH:mm:ss";
-	
+	private static final String DEFAULT_DATE_PATTERN = "yyyy-MM-dd HH:mm:ss";
+	private static final String DEFAULT_TIME_PATTERN = "HH:mm:ss";
+
     /**
      * 获取当天的字符串
      * @return
@@ -31,12 +32,17 @@ public class DateTimeUtil {
         return sdf.format(new Date());
     }
 
+	public static String getCurrentTime(){
+		return getCurrentTime(DEFAULT_TIME_PATTERN);
+	}
+
+
     /**
      * 获取当前时间的字符串
      * @return
      */
-    public static String getCurrentTime(){
-    	return getCurrentTime(DEFAULT_PATTERN);
+    public static String getCurrentDateTime(){
+    	return getCurrentTime(DEFAULT_DATE_PATTERN);
     }
     
     /**
@@ -67,7 +73,7 @@ public class DateTimeUtil {
      * @throws ParseException
      */
     public static int compareTime(String time1,String time2) throws ParseException{
-    	SimpleDateFormat sdf = new SimpleDateFormat(DEFAULT_PATTERN);
+    	SimpleDateFormat sdf = new SimpleDateFormat(DEFAULT_DATE_PATTERN);
     	Date date1 = sdf.parse(time1);
     	Date date2 = sdf.parse(time2);
     	long result = date1.getTime() - date2.getTime();
@@ -123,7 +129,7 @@ public class DateTimeUtil {
      * @return
      */
     public static String convertDate(String dateStr,String format){
-    	return convertDate(dateStr, DEFAULT_PATTERN,format);
+    	return convertDate(dateStr, DEFAULT_DATE_PATTERN,format);
     }
     
     
