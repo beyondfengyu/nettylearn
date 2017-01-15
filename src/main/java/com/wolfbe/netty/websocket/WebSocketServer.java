@@ -19,6 +19,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * @author laochunyu
+ * 该项目已经不提供维护，新的代码迁移到GitHub其它项目
+ * https://github.com/beyondfengyu/HappyChat
  */
 public class WebSocketServer extends BaseServer {
     private ScheduledExecutorService executorService;

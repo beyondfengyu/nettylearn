@@ -5,6 +5,8 @@ import org.slf4j.LoggerFactory;
 
 /**
  * WebSocket聊天室，客户端参考docs目录下的websocket.html
+ * 该项目已经不提供维护，新的代码迁移到GitHub其它项目
+ * https://github.com/beyondfengyu/HappyChat
  * @author Andy
  */
 public class WebSocketMain {
